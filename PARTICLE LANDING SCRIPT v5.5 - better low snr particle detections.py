@@ -72,17 +72,21 @@ Version History:
         !!!!!!!!!     DATA OLDER THAN MARCH 17th          !!!!!!!!!!!!
         !!!!!!!!!  SHOULD BE REPROCESSED WITH THIS CODE   !!!!!!!!!!!!
 
-    v5.4 Added random sampling 3d plots and contrast histogram
+    v5.4
+        Added random sampling 3d plots and contrast histogram
     
-    v5.5 reworked the ratiometric process to quewith collections.deque datatype
-        instead of lists. it didnt seem to make it any faster as small frame numbers
+    v5.5 
+        Changes made for streamlined code:
+            -Reworked the ratiometric process to quewith collections.deque datatype
+            instead of lists. it didnt seem to make it any faster as small frame numbers
+            -Streamlined remove_blip_particle functions by removing call to a singly
+            used method .isReal. removed .isReal
         
-        streamlined remove_blip_particle functions by removing call to a singly
-        used method .isReal. removed .isReal
+        Changes made for improved low SNR particle finding
+            -Added gaussian blur as a preprocess step for particle finding
+            -Removed goodness of fit requirement temporarily
         
-        added gaussian blur as a preprocess step for particle finding
         
-        removed goodness of fit requirement temporarily
 
 """
 
@@ -871,62 +875,6 @@ def fitDoGaussian(data): #find optimized gaussian fit for a particle
     return p
 
 
-def remove_non_gaussian_particles(particle_list):
-    
-    particle_list_out = []
-    new_pID = 1
-    
-    print("\nFitting: ", len(particle_list), " Particles to approximations of Zero Order Bessel Functions of the First Kind...")
-    #print("pID  \t   drkpxl \t loc \t   len \t %  \t   RMSE  \t  peak contrast")
-    for p in tqdm.tqdm(particle_list):  
-        darkest_frame = np.argmin(p.drkpxl_vec)
-        darkest_image = p.pimage_vec[darkest_frame]
-        
-        #generate a space the same shape as the image to use for the fit
-        Xin, Yin = np.mgrid[0:50, 0:50]         #emtpy grid to fit the parameters to. must be the same size as the particle iamge
-        
-        #generate an optimized parameters for gaussian fit
-        paramsG          = fitgaussian(darkest_image)
-        paramsLoG        = fitLoGaussian(darkest_image)
-        paramsDoG        = fitDoGaussian(darkest_image)
-        
-        # Plot the fit function on a surface 
-        fitG             = gaussian(*paramsG)(Xin, Yin)        
-        fitLoG           = LoG(*paramsLoG)(Xin, Yin)        
-        fitDoG           = DoG(*paramsDoG)(Xin, Yin)        
-        
-        # Calculate the PEAK CONTRAST based on the fit
-        peak_contrastG   = 1 + paramsG[0]
-        peak_contrastLoG = np.min(fitLoG)#1 + params[0]
-        peak_contrastDoG = np.min(fitDoG)#1 + params[0]
-        
-        #calculate RMSE for the fit
-        rmseG   = sqrt(mean_squared_error(darkest_image, fitG))
-        rmseLoG = sqrt(mean_squared_error(darkest_image, fitLoG))
-        rmseDoG = sqrt(mean_squared_error(darkest_image, fitDoG))
-
-        #update current particle
-        p.pID              = new_pID
-        p.rmseG            = rmseG
-        p.rmseLoG          = rmseLoG
-        p.rmseDoG          = rmseDoG
-        p.peak_contrastG   = peak_contrastG
-        p.peak_contrastLoG = peak_contrastLoG
-        p.peak_contrastDoG = peak_contrastDoG
-        p.paramsG          = paramsG
-        p.paramsLoG        = paramsLoG
-        p.paramsDoG        = paramsDoG
-        
-        
-        ''' Remove Particles that do not fit the model well '''
-        if rmseDoG < 0.03:
-            #populate new particle list   
-            particle_list_out.append(p)
-            new_pID += 1
- 
-    particle_list_out = np.asarray(particle_list_out)
-    return particle_list_out
-
 
 
 
@@ -1249,8 +1197,8 @@ def ratiometric_particle_finder2(images, bufsize, clipmin, clipmax):
     d1 = deque(images[:bufsize].astype(np.float16), bufsize)#[]
     d2 = deque(images[bufsize:(2*bufsize)].astype(np.float16), bufsize)#[]
 
-    print(len(d1))
-    print(len(d2))
+    #print(len(d1))
+    #print(len(d2))
     
     i16 = np.ndarray([x,y]).astype(np.float16)
     i8  = np.ndarray([x,y]).astype(np.uint8)
@@ -1461,7 +1409,7 @@ def draw_langmuir(particle_list, nframes, fps, title, basepath, name):
 
     # seconds per frame list
     # this converts the x axis from frames to seconds
-    spf = np.linspace(0, (n/fps), n)
+    spf = np.linspace(0, (nframes/fps), nframes)
     
     #print(spf, ppf)
     plt.rcParams['figure.figsize'] = [8, 8]
@@ -1488,7 +1436,7 @@ def remove_blip_particles(particle_list):
     cleaned_particle_list = []
     c = 1
     for p in particle_list:
-        print("length of f_vec: ", len(p.f_vec))
+        #print("length of f_vec: ", len(p.f_vec))
         if len(p.f_vec) > 6:
             cleaned_particle_list.append(p)
             cleaned_particle_list[-1].pID = c
@@ -1507,12 +1455,71 @@ def remove_blip_particles(particle_list):
 
 
 
+def remove_non_gaussian_particles(particle_list):
+    
+    particle_list_out = []
+    new_pID = 1
+    
+    print("\nFitting: ", len(particle_list), " Particles to approximations of Zero Order Bessel Functions of the First Kind...")
+    #print("pID  \t   drkpxl \t loc \t   len \t %  \t   RMSE  \t  peak contrast")
+    for p in tqdm.tqdm(particle_list):  
+        darkest_frame = np.argmin(p.drkpxl_vec)
+        darkest_image = p.pimage_vec[darkest_frame]
+        
+        #generate a space the same shape as the image to use for the fit
+        Xin, Yin = np.mgrid[0:50, 0:50]         #emtpy grid to fit the parameters to. must be the same size as the particle iamge
+        
+        #generate an optimized parameters for gaussian fit
+        paramsG          = fitgaussian(darkest_image)
+        paramsLoG        = fitLoGaussian(darkest_image)
+        paramsDoG        = fitDoGaussian(darkest_image)
+        
+        # Plot the fit function on a surface 
+        fitG             = gaussian(*paramsG)(Xin, Yin)        
+        fitLoG           = LoG(*paramsLoG)(Xin, Yin)        
+        fitDoG           = DoG(*paramsDoG)(Xin, Yin)        
+        
+        # Calculate the PEAK CONTRAST based on the fit
+        peak_contrastG   = 1 + paramsG[0]
+        peak_contrastLoG = np.min(fitLoG)#1 + params[0]
+        peak_contrastDoG = np.min(fitDoG)#1 + params[0]
+        
+        #calculate RMSE for the fit
+        rmseG   = sqrt(mean_squared_error(darkest_image, fitG))
+        rmseLoG = sqrt(mean_squared_error(darkest_image, fitLoG))
+        rmseDoG = sqrt(mean_squared_error(darkest_image, fitDoG))
+
+        #update current particle
+        p.pID              = new_pID
+        p.rmseG            = rmseG
+        p.rmseLoG          = rmseLoG
+        p.rmseDoG          = rmseDoG
+        p.peak_contrastG   = peak_contrastG
+        p.peak_contrastLoG = peak_contrastLoG
+        p.peak_contrastDoG = peak_contrastDoG
+        p.paramsG          = paramsG
+        p.paramsLoG        = paramsLoG
+        p.paramsDoG        = paramsDoG
+        
+        
+        ''' Remove Particles that do not fit the model well '''
+        if rmseDoG < 0.1:
+            #populate new particle list   
+            particle_list_out.append(p)
+            new_pID += 1
+ 
+    particle_list_out = np.asarray(particle_list_out)
+    
+    return particle_list_out
+
+
+
 
 # ''' INITIAL CONDITIONS   '''
 
 
 
-binfile = r'C:/Users/user1/Desktop/python iscat/video compression test/2022-03-22_16-30-52_raw_12_512_70_500mw.bin'
+binfile = r'C:/Users/user1/Desktop/python iscat/video compression test/2022-03-22_16-30-52_raw_12_512_70_5mw.bin'
 
 sample_name = "test test test"
 
@@ -1578,8 +1585,9 @@ particle_list2 = remove_blip_particles(particle_list)
 save_particle_video(ratio_vid8, particle_list2, output_framerate, basepath, name, "2")
 
 particle_list3 = remove_non_gaussian_particles(particle_list2)
-#save_particle_video(ratio_vid8, particle_list3, output_framerate, basepath, name, "3")
+save_particle_video(ratio_vid8, particle_list3, output_framerate, basepath, name, "3")
 #particle_list3 = particle_list2
+
 
 ''' Save Particle Data '''
 
@@ -1590,7 +1598,6 @@ generate_landing_rate_csv(particle_list3, nframes, fps, basepath, name)
 generate_particle_list_csv(particle_list3, basepath, name)
 
 
-
 ''' draw plots '''
 draw_particle_landing_map(particle_list3, (fov / x), sample_name, basepath, name)      
 #draw_one_particle_landing_v(particle_list2[47], sample_name, basepath, filename)
@@ -1599,8 +1606,6 @@ random_sampling(particle_list3, 2, basepath, name)
 plot_contrast_histogram(particle_list3, basepath, name)
 
     
-
-
 
 
 
