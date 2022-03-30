@@ -72,7 +72,30 @@ Version History:
         !!!!!!!!!     DATA OLDER THAN MARCH 17th          !!!!!!!!!!!!
         !!!!!!!!!  SHOULD BE REPROCESSED WITH THIS CODE   !!!!!!!!!!!!
 
-    v5.4 Added random sampling 3d plots and contrast histogram
+    v5.4
+        Added random sampling 3d plots and contrast histogram
+    
+    v5.5 
+        Changes made for streamlined code:
+            -Reworked the ratiometric process to quewith collections.deque datatype
+            instead of lists. it didnt seem to make it any faster as small frame numbers
+            -Streamlined remove_blip_particle functions by removing call to a singly
+            used method .isReal. removed .isReal
+        
+        Changes made for improved low SNR particle finding
+            -Added gaussian blur as a preprocess step for particle finding
+            -Removed goodness of fit requirement temporarily
+    v5.6
+        Added function to load video file into memory. this will allow us to
+        use normal videos (.mp4) for compressing experimental data. From the
+        initial test it seems that the results are almost the same (within 2%)
+        whether you do particle finding from the .bin file or from the .mp4 file
+        Landing rate and contrast histogram also seem to be the same
+        
+        added a "zeroed time" landing rate .csv file generator to the normal
+        landing rate .csv function
+        
+        
 
 """
 
@@ -435,122 +458,6 @@ def ratiometric_particle_finder(images, bufsize, clipmin, clipmax, print_time=Tr
 '''
 
 
-# def find_particles_in_frame(image8, image16):  #find particles in a single frame
-#     '''
-#     Use this to find particles in a frame
-#     INPUT: A Greyscale Image as a numpy array (x, y), 8-bit clipped and 16-bit ratiometric centered at 1    
-#     OUTPUT: A List of Particle Objects for the frame'''
-
-#     #GAUSS_SIGMA            = 3.0    # KERNAL SIZE FOR INITIAL GAUSSIAN BLUR
-#     #BINARY_THRESHOLD       = 100    
-#     CANNY_SIGMA            = 1#3#4.5 #3   
-#     CANNY_LOW_THRESHOLD    = 50#11#10#9
-#     CANNY_HIGH_THRESHOLD   = 100#21#19    
-#     HOUGH_RADII = [8]#[8]  #8 works really well and its faster than radii ranges by around a factor of 2 or more usually
-#     # more hough radii comments
-#     #[4,5,6,7,8,9]#np.arange(6,9,1)#[8]#np.arange(6,18,3)#(6,21,1) worked well but its slow i think    8 #something from 8 -12 seems to work for 512x512 images #Can also use a range: np.arange(10, 11, 2) #default 25, 35, 2
-    
-#     MIN_DIST= 10             # this is them minimum to distance required for two particles to be considered real (i.e. not overlapping)
-    
-#     frame_particle_list = []    # This is where we will store the output particle list for this frame
-#                                 # it is a list of particle objects
-    
-#     #gaussian blur    
-#     # img2 = skimage.filters.gaussian(image, sigma=GAUSS_SIGMA)*256 #sigma=3.0
-#     # plt.imshow(img2)
-#     # plt.show()
-    
-#     #binary threshold
-#     # img3 = img2 > BINARY_THRESHOLD#100
-#     # plt.imshow(img3)
-#     # plt.show()
-    
-#     #detect edges
-    
-#     edges = canny(image8, CANNY_SIGMA, CANNY_LOW_THRESHOLD, CANNY_HIGH_THRESHOLD)
-#     #plt.imshow(edges)
-#     #plt.show()
-    
-#     # Detect Circles from Edges
-#     #hough_radii = HOUGH_AIRY_DISK_RADIUS #[HOUGH_AIRY_DISK_RADIUS]
-#     hough_res = hough_circle(edges, HOUGH_RADII)
-#     #plt.imshow(hough_res[0]) #21 then 13
-#     #plt.show()
-    
-#     #plt.imshow(hough_res[0]*255, cmap='Spectral')
-#     #plt.show()
-#     # Select the most prominent 10 circles
-#     accums_, cx_, cy_, radii_ = hough_circle_peaks(hspaces = hough_res,             # Generate particle spec lists
-#                                                radii   = HOUGH_RADII,
-#                                                threshold = 0.3,                 # the lower this is the slower it goes but the more circles it finds. 0.3 is the best tradeoff 
-#                                                total_num_peaks = 30)
-    
-#     #remove particles on edge
-#     cx, cy = [], []    
-#     for i in range(len(cx_)):
-#         if 25 < cx_[i] < (512-25) and 25 < cy_[i] < (512-25):
-#             cx.append(cx_[i])
-#             cy.append(cy_[i])
-#             #print(cx[-1])
-#     cx_, cy_ = cx, cy
-
-        
-#     #check for co-axial circles
-#     cx, cy = [], []    
-#     for i in range(len(cx_)):
-#         #print("CHECKING PARTICLE:   ", i)
-#         if i == 0:     #add the first particle to the new list
-#             cx.append(cx_[0])
-#             cy.append(cy_[0])
-#         else:          #check to see if the current particle is already on the new list
-#             cx_[i] # current particle x
-#             cy_[i] # current particle_y
-            
-#             cx[:]  #new list of known particles
-#             cy[:]  #new list of known particles
-            
-#             match = 0
-#             for p in range(len(cx)): #if a particles x and y both are close to another particle, then mark it as matched
-#                 if np.absolute(cx[p]-cx_[i]) < MIN_DIST and np.absolute(cy[p]-cy_[i]) < MIN_DIST: match += 1
-            
-          
-#             if match == 0:  #if it wasnt a match to any other particle then add it to the list
-#                 cx.append(cx_[i])
-#                 cy.append(cy_[i])
-    
-#     #cx, cy = cx_, cy_        
-            
-        
-    
-#     # Make a list of particles darker than some threshold
-#     # Also record the average value of the center 25 pixels
-#     # and record the particle image
-#     for c in range(len(cx)):
-#         px, py = cx[c], cy[c]
-#         avgdrkpxl = np.average(image16[ (py-5):(py+5), (px-5):(px+5) ])           # Calculate approximately how dark the particle is
-#         if avgdrkpxl < 1:                                                     # If its sufficiently dark, Create a new
-            
-        
-#             #it would be nice to fix this so it pastes the iamge on a grey background
-#             pimage = image16[ (py-25):(py+25), (px-25):(px+25) ]                  # Particle Object and add it to the output list
-            
-            
-#             frame_particle_list.append(Particle(cx[c], cy[c], 0, avgdrkpxl, 0, pimage))
-    
-    
-#     # Make a list of all particles
-#     # for c in range(len(cx)):
-#     #     px, py = cx[c], cy[c]
-#     #     avgdrkpxl = np.average(image[ (py-5):(py+5), (px-5):(px+5) ])           # Calculate approximately how dark the particle is
-#     #     pimage = image[ (py-25):(py+25), (px-25):(px+25) ]                  # Particle Object and add it to the output list
-#     #     frame_particle_list.append(Particle(cx[c], cy[c], 0, avgdrkpxl, 0, pimage))
-    
-    
-    
-#     return frame_particle_list
-
-
-
 
 
 def look_for_matching_particle(particle, particle_list):
@@ -580,11 +487,6 @@ def look_for_matching_particle(particle, particle_list):
                         
     #returns either False or the matched pID
     return matched_pID
-
-
-
-
-
 
 
 
@@ -756,41 +658,41 @@ def print_particle_report(particle_list):
     return True
 
 
-def generate_landing_rate_csv(particle_list, nframes, fps, basepath, filename):
+# def generate_landing_rate_csv(particle_list, nframes, fps, basepath, filename):
     
-    print("Making .csv file for Landing Rate...")
-    csv_filename = os.path.join(basepath, "output", (filename+"__Landing Rate__.csv"))
+#     print("Making .csv file for Landing Rate...")
+#     csv_filename = os.path.join(basepath, "output", (filename+"__Landing Rate__.csv"))
         
-    # get the total numnber of frames, n
-    #n = 0
-    #for p in particle_list:
-    #    if p.f_vec[-1] > n: n = p.f_vec[-1]
-    #print("\n\t N: ", n)
+#     # get the total numnber of frames, n
+#     #n = 0
+#     #for p in particle_list:
+#     #    if p.f_vec[-1] > n: n = p.f_vec[-1]
+#     #print("\n\t N: ", n)
     
-    n = nframes
-    #n = ratio_vid.shape[0]
-    #print(n)
+#     n = nframes
+#     #n = ratio_vid.shape[0]
+#     #print(n)
     
     
-    # particles per frame, list
-    ppf = np.zeros(n)
-    c = 0                                                       # initialize a total particle counter
-    for i, f in enumerate(ppf):                                 #loop through each frame of the video     
+#     # particles per frame, list
+#     ppf = np.zeros(n)
+#     c = 0                                                       # initialize a total particle counter
+#     for i, f in enumerate(ppf):                                 #loop through each frame of the video     
     
-        pids = [p.pID for p in particle_list if p.f_vec[0] == i]   # returns a list of particle ID's (which are equivalent to particle counts)
-                                                                # for all particles that first landed on this particular frame
-        if pids: c = pids[-1]                                   # if a list of landed particles was created, then use the largest pID
-                                                                # (the last particle on the list), as the new total particle count
-        ppf[i] = c                                              # set the particles per frame to be the total number of particles found so far
+#         pids = [p.pID for p in particle_list if p.f_vec[0] == i]   # returns a list of particle ID's (which are equivalent to particle counts)
+#                                                                 # for all particles that first landed on this particular frame
+#         if pids: c = pids[-1]                                   # if a list of landed particles was created, then use the largest pID
+#                                                                 # (the last particle on the list), as the new total particle count
+#         ppf[i] = c                                              # set the particles per frame to be the total number of particles found so far
 
-    # seconds per frame list
-    # this converts the x axis from frames to seconds
-    spf = np.linspace(0, (n/fps), n)
+#     # seconds per frame list
+#     # this converts the x axis from frames to seconds
+#     spf = np.linspace(0, (n/fps), n)
     
-    #print(spf, ppf)    
+#     #print(spf, ppf)    
     
-    np.savetxt(csv_filename, np.transpose([spf, ppf]), delimiter=',')
-    print("\t Particles list saved as: ", csv_filename)
+#     np.savetxt(csv_filename, np.transpose([spf, ppf]), delimiter=',')
+#     print("\t Particles list saved as: ", csv_filename)
 
 
 
@@ -982,62 +884,6 @@ def fitDoGaussian(data): #find optimized gaussian fit for a particle
     return p
 
 
-def remove_non_gaussian_particles(particle_list):
-    
-    particle_list_out = []
-    new_pID = 1
-    
-    print("\nFitting: ", len(particle_list), " Particles to approximations of Zero Order Bessel Functions of the First Kind...")
-    #print("pID  \t   drkpxl \t loc \t   len \t %  \t   RMSE  \t  peak contrast")
-    for p in tqdm.tqdm(particle_list):  
-        darkest_frame = np.argmin(p.drkpxl_vec)
-        darkest_image = p.pimage_vec[darkest_frame]
-        
-        #generate a space the same shape as the image to use for the fit
-        Xin, Yin = np.mgrid[0:50, 0:50]         #emtpy grid to fit the parameters to. must be the same size as the particle iamge
-        
-        #generate an optimized parameters for gaussian fit
-        paramsG          = fitgaussian(darkest_image)
-        paramsLoG        = fitLoGaussian(darkest_image)
-        paramsDoG        = fitDoGaussian(darkest_image)
-        
-        # Plot the fit function on a surface 
-        fitG             = gaussian(*paramsG)(Xin, Yin)        
-        fitLoG           = LoG(*paramsLoG)(Xin, Yin)        
-        fitDoG           = DoG(*paramsDoG)(Xin, Yin)        
-        
-        # Calculate the PEAK CONTRAST based on the fit
-        peak_contrastG   = 1 + paramsG[0]
-        peak_contrastLoG = np.min(fitLoG)#1 + params[0]
-        peak_contrastDoG = np.min(fitDoG)#1 + params[0]
-        
-        #calculate RMSE for the fit
-        rmseG   = sqrt(mean_squared_error(darkest_image, fitG))
-        rmseLoG = sqrt(mean_squared_error(darkest_image, fitLoG))
-        rmseDoG = sqrt(mean_squared_error(darkest_image, fitDoG))
-
-        #update current particle
-        p.pID              = new_pID
-        p.rmseG            = rmseG
-        p.rmseLoG          = rmseLoG
-        p.rmseDoG          = rmseDoG
-        p.peak_contrastG   = peak_contrastG
-        p.peak_contrastLoG = peak_contrastLoG
-        p.peak_contrastDoG = peak_contrastDoG
-        p.paramsG          = paramsG
-        p.paramsLoG        = paramsLoG
-        p.paramsDoG        = paramsDoG
-        
-        
-        ''' Remove Particles that do not fit the model well '''
-        if rmseDoG < 0.03:
-            #populate new particle list   
-            particle_list_out.append(p)
-            new_pID += 1
- 
-    particle_list_out = np.asarray(particle_list_out)
-    return particle_list_out
-
 
 
 
@@ -1220,21 +1066,15 @@ def plot_contrast_histogram(particle_list, basepath, name):
 #plot_contrast_histogram(particle_list3, basepath, name)
 
 
-
-''' 
-      ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO     
-    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO  
-    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
-      ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
 '''
-
+### ###########################
+### ###########################
+###
+###   UPDATED FUNCTIONS FROM VERSION 5.5
+###
+### ############################
+### ############################
+'''
 def save_particle_video(video_in, particle_list, framerate, basepath, name, extra_name):
     
     rgb_video = draw_particles_on_video(video_in, particle_list)
@@ -1360,8 +1200,8 @@ def ratiometric_particle_finder2(images, bufsize, clipmin, clipmax):
     d1 = deque(images[:bufsize].astype(np.float16), bufsize)#[]
     d2 = deque(images[bufsize:(2*bufsize)].astype(np.float16), bufsize)#[]
 
-    print(len(d1))
-    print(len(d2))
+    #print(len(d1))
+    #print(len(d2))
     
     i16 = np.ndarray([x,y]).astype(np.float16)
     i8  = np.ndarray([x,y]).astype(np.uint8)
@@ -1556,26 +1396,10 @@ def find_particles_in_frame(image8, image16):  #find particles in a single frame
 
 def draw_langmuir(particle_list, nframes, fps, title, basepath, name):
 
-    # get the total numnber of frames, n
-    #n = 0
-    #for p in particle_list:
-    #    if p.f_vec[-1] > n: n = p.f_vec[-1]
-    #print("\n\t N: ", n)
-    
-    n = nframes
-    #print(n)    
-
     # particles per frame, list
-    ppf = np.zeros(n)
+    ppf = np.zeros(nframes)
     c = 0
 
-    print(n)
-    
-    for p in particle_list:
-        print(p.pID)
-    
-    
-                                                   # initialize a total particle counter
     #for i, f in enumerate(ppf):                                 #loop through each frame of the video        
     for i in range(len(ppf)):
         pids = [p.pID for p in particle_list if p.f_vec[0] == i]   # returns a list of particle ID's (which are equivalent to particle counts)
@@ -1586,10 +1410,9 @@ def draw_langmuir(particle_list, nframes, fps, title, basepath, name):
         ppf[i] = c                                              # set the particles per frame to be the total number of particles found so far
 
 
-
     # seconds per frame list
     # this converts the x axis from frames to seconds
-    spf = np.linspace(0, (n/fps), n)
+    spf = np.linspace(0, (nframes/fps), nframes)
     
     #print(spf, ppf)
     plt.rcParams['figure.figsize'] = [8, 8]
@@ -1616,7 +1439,7 @@ def remove_blip_particles(particle_list):
     cleaned_particle_list = []
     c = 1
     for p in particle_list:
-        print("length of f_vec: ", len(p.f_vec))
+        #print("length of f_vec: ", len(p.f_vec))
         if len(p.f_vec) > 6:
             cleaned_particle_list.append(p)
             cleaned_particle_list[-1].pID = c
@@ -1635,21 +1458,157 @@ def remove_blip_particles(particle_list):
 
 
 
+def remove_non_gaussian_particles(particle_list):
+    
+    particle_list_out = []
+    new_pID = 1
+    
+    print("\nFitting: ", len(particle_list), " Particles to approximations of Zero Order Bessel Functions of the First Kind...")
+    #print("pID  \t   drkpxl \t loc \t   len \t %  \t   RMSE  \t  peak contrast")
+    for p in tqdm.tqdm(particle_list):  
+        darkest_frame = np.argmin(p.drkpxl_vec)
+        darkest_image = p.pimage_vec[darkest_frame]
+        
+        #generate a space the same shape as the image to use for the fit
+        Xin, Yin = np.mgrid[0:50, 0:50]         #emtpy grid to fit the parameters to. must be the same size as the particle iamge
+        
+        #generate an optimized parameters for gaussian fit
+        paramsG          = fitgaussian(darkest_image)
+        paramsLoG        = fitLoGaussian(darkest_image)
+        paramsDoG        = fitDoGaussian(darkest_image)
+        
+        # Plot the fit function on a surface 
+        fitG             = gaussian(*paramsG)(Xin, Yin)        
+        fitLoG           = LoG(*paramsLoG)(Xin, Yin)        
+        fitDoG           = DoG(*paramsDoG)(Xin, Yin)        
+        
+        # Calculate the PEAK CONTRAST based on the fit
+        peak_contrastG   = 1 + paramsG[0]
+        peak_contrastLoG = np.min(fitLoG)#1 + params[0]
+        peak_contrastDoG = np.min(fitDoG)#1 + params[0]
+        
+        #calculate RMSE for the fit
+        rmseG   = sqrt(mean_squared_error(darkest_image, fitG))
+        rmseLoG = sqrt(mean_squared_error(darkest_image, fitLoG))
+        rmseDoG = sqrt(mean_squared_error(darkest_image, fitDoG))
+
+        #update current particle
+        p.pID              = new_pID
+        p.rmseG            = rmseG
+        p.rmseLoG          = rmseLoG
+        p.rmseDoG          = rmseDoG
+        p.peak_contrastG   = peak_contrastG
+        p.peak_contrastLoG = peak_contrastLoG
+        p.peak_contrastDoG = peak_contrastDoG
+        p.paramsG          = paramsG
+        p.paramsLoG        = paramsLoG
+        p.paramsDoG        = paramsDoG
+        
+        
+        ''' Remove Particles that do not fit the model well '''
+        if rmseDoG < 0.1:
+            #populate new particle list   
+            particle_list_out.append(p)
+            new_pID += 1
+ 
+    particle_list_out = np.asarray(particle_list_out)
+    
+    return particle_list_out
+
+'''
+###############################################################################
+###############################################################################
+
+    UPDATED FUNCTIONS FROM VERSION 5.6
+
+###############################################################################
+###############################################################################
+'''
+
+import skvideo.io  
+def load_raw_video(filepath):
+    ''' this function loads a video file and returns a 3d numpy array (frames, x, y) '''
+    ''' it is assumed that the video file to be read in was created by the save_bw_video function in this script '''
+    
+    #d1 = skvideo.io.vread(filepath, as_grey=False) 
+    d2 = skvideo.io.vread(filepath, as_grey=True) 
+    #d3 = np.dot(d1[:][:][:],[0.3, 0.3, 0.3]).astype(np.uint8)
+    d4 = np.dot(d2,[1]).astype(np.uint8)
+    return d4
+
+
+def generate_landing_rate_csv(particle_list, nframes, fps, basepath, filename):
+    
+    print("Making .csv file for Landing Rate...")
+    n = nframes
+    # particles per frame, list
+    ppf = np.zeros(n)
+    c = 0                                                       # initialize a total particle counter
+    for i, f in enumerate(ppf):                                 #loop through each frame of the video     
+    
+        pids = [p.pID for p in particle_list if p.f_vec[0] == i]   # returns a list of particle ID's (which are equivalent to particle counts)
+                                                                # for all particles that first landed on this particular frame
+        if pids: c = pids[-1]                                   # if a list of landed particles was created, then use the largest pID
+                                                                # (the last particle on the list), as the new total particle count
+        ppf[i] = c                                              # set the particles per frame to be the total number of particles found so far
+
+    # seconds per frame list
+    # this converts the x axis from frames to seconds
+    spf = np.linspace(0, (n/fps), n)
+    
+    #save original particle landing rate data
+    csv_filename = os.path.join(basepath, "output", (filename+"__Landing Rate__.csv"))    
+    np.savetxt(csv_filename, np.transpose([spf, ppf]), delimiter=',')
+    print("\t Particles list saved as: ", csv_filename)
+    
+    
+    #save zeroed landing rate data
+    zeroindex = 0
+    for i, v in enumerate(ppf):
+        if v >= 1:
+            zeroindex = i
+            break
+    spf2 = spf[zeroindex:]
+    ppf2 = ppf[zeroindex:]
+    
+    csv_filename = os.path.join(basepath, "output", (filename+"__Landing Rate__0000.csv"))    
+    np.savetxt(csv_filename, np.transpose([spf2, ppf2]), delimiter=',')
+    print("\t Particles list saved as: ", csv_filename)
+    
+    return
+    
+
+
+
+
+
+
+
+
+''' 
+      ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO     
+    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+  ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO  
+    ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+      ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO ###### TESTING SCENARIO 
+'''
+
+
 
 # ''' INITIAL CONDITIONS   '''
-
-
-
-binfile = r'C:/Users/user1/Desktop/python iscat/video compression test/2022-03-22_16-30-52_raw_12_512_70_5mw.bin'
-
+binfile = r'C:/Users/user1/Desktop/python projects.2022/python iscat/video compression test/2022-03-22_16-30-52_raw_12_512_70_500mw.bin'
 sample_name = "test test test"
 
 output_framerate = 24  # frane rate for output video
 binsize          = 10  # ratiometric bin size
-
 clipmin = 0.95
 clipmax = 1.05
-
 
 
 
@@ -1659,18 +1618,103 @@ binimages = load_binfile_into_array(binfile)
 basepath, filename, name, nframes, fov, x, y, fps = get_bin_metadata(binfile) # get basic info about binfile
 if not os.path.exists(os.path.join(basepath, "output")):
     os.makedirs(os.path.join(basepath, "output"))
+#%%
+
 # ########################################################
 # # # MAKE SHORTENED VERSION OF VIDEO FOR TESTING PURPOSES
-start_frame  = 1000
-end_frame    = 1200
+start_frame  = 100
+end_frame    = 200
 images = binimages[start_frame:end_frame]
 nframes = end_frame - start_frame
 # # # OR USE THE FULL FILE
 #images = binimages
 # ########################################################
 #save the original raw video
+save_bw_video(images, output_framerate, basepath, name)
 
-#save_bw_video(images, output_framerate, basepath, name)
+#%%
+
+
+ratio_vid8, particle_list, info = ratiometric_particle_finder2(images, binsize, clipmin, clipmax)
+
+save_bw_video(ratio_vid8, output_framerate, basepath, (name+"ratio"))
+save_particle_video(ratio_vid8, particle_list, output_framerate, basepath, name, "1")
+
+
+particle_list2 = remove_blip_particles(particle_list)
+save_particle_video(ratio_vid8, particle_list2, output_framerate, basepath, name, "2")
+
+particle_list3 = remove_non_gaussian_particles(particle_list2)
+save_particle_video(ratio_vid8, particle_list3, output_framerate, basepath, name, "3")
+
+#%%
+''' Save Particle Data '''
+save_particle_data(particle_list3, basepath, name)
+# Generate data for Langmuir Adsorption rate
+generate_landing_rate_csv(particle_list3, nframes, fps, basepath, name)
+# Generate data for each particle
+generate_particle_list_csv(particle_list3, basepath, name)
+
+''' draw plots '''
+draw_particle_landing_map(particle_list3, (fov / x), sample_name, basepath, name)      
+#draw_one_particle_landing_v(particle_list2[47], sample_name, basepath, filename)
+draw_langmuir(particle_list3, nframes, fps, sample_name, basepath, name)
+random_sampling(particle_list3, 2, basepath, name)    
+plot_contrast_histogram(particle_list3, basepath, name)
+
+
+
+
+
+
+#%%
+
+
+'''load from video file '''
+
+#load
+vidpath = r'C:/Users/user1/Desktop/python projects.2022/python iscat/video compression test/output/2022-03-22_16-30-52_raw_12_512_70_500mw.mp4'
+images_fv = load_raw_video(vidpath)
+save_bw_video(images_fv, output_framerate, basepath, (name+"_fromvideo"))
+
+#ratio/particle finding
+ratio_vid8_fv, pl_fv, info = ratiometric_particle_finder2(images_fv, binsize, clipmin, clipmax)
+save_bw_video(ratio_vid8_fv, output_framerate, basepath, (name+"ratio-fromvid"))
+save_particle_video(ratio_vid8_fv, pl_fv, output_framerate, basepath, name, "1-fromvid")
+
+#remove flase positives
+pl_fv2 = remove_blip_particles(pl_fv)
+save_particle_video(ratio_vid8_fv, pl_fv2, output_framerate, basepath, name, "2-fromvid")
+pl_fv3 = remove_non_gaussian_particles(pl_fv2)
+save_particle_video(ratio_vid8_fv, pl_fv3, output_framerate, basepath, name, "3-fromvid")
+
+#save particle data
+save_particle_data(pl_fv3, basepath, name)
+# Generate data for Langmuir Adsorption rate
+generate_landing_rate_csv(pl_fv3, nframes, fps, basepath, name)
+# Generate data for each particle
+generate_particle_list_csv(pl_fv3, basepath, name)
+
+#draw plots
+draw_particle_landing_map(pl_fv3, (fov / x), sample_name, basepath, name)      
+#draw_one_particle_landing_v(particle_list2[47], sample_name, basepath, filename)
+draw_langmuir(pl_fv3, nframes, fps, sample_name, basepath, name)
+random_sampling(pl_fv3, 2, basepath, name)    
+plot_contrast_histogram(pl_fv3, basepath, name)
+
+
+
+
+
+
+#%%
+
+
+
+
+
+
+
 
 
 
@@ -1678,15 +1722,11 @@ nframes = end_frame - start_frame
 ''' RATIOMETRIC PROCESS AND PARTICLE FINDING '''
 
 ratio_vid8, particle_list, info = ratiometric_particle_finder2(images, binsize, clipmin, clipmax)
-#save_bw_video(ratio_vid8, output_framerate, basepath, (name+"ratio"))
 
-
-''' GENERATE CIRCLED PARTICLE VIDEOS '''
-#generate video of images with circles drawn on particles
-#video_with_circles = draw_particles_on_video(ratio_vid8, particle_list)
-#save_color_video(video_with_circles, output_framerate, basepath, name)
+save_bw_video(ratio_vid8, output_framerate, basepath, (name+"ratio"))
 save_particle_video(ratio_vid8, particle_list, output_framerate, basepath, name, "1")
 
+#%%
 
 # ''' TEST ONE FRAME FOR PARTICLE IDENTIFICATION '''
 # ''' test conditions. cropping from frame 1000:1232
@@ -1709,28 +1749,18 @@ save_particle_video(ratio_vid8, particle_list, output_framerate, basepath, name,
 particle_list2 = remove_blip_particles(particle_list)
 save_particle_video(ratio_vid8, particle_list2, output_framerate, basepath, name, "2")
 
-
 particle_list3 = remove_non_gaussian_particles(particle_list2)
 save_particle_video(ratio_vid8, particle_list3, output_framerate, basepath, name, "3")
+#particle_list3 = particle_list2
 
-particle_list3 = particle_list2
 
 ''' Save Particle Data '''
 
 save_particle_data(particle_list3, basepath, name)
-
 # Generate data for Langmuir Adsorption rate
 generate_landing_rate_csv(particle_list3, nframes, fps, basepath, name)
 # Generate data for each particle
 generate_particle_list_csv(particle_list3, basepath, name)
-
-
-
-
-# ''' GENERATE CIRCLED PARTICLE VIDEOS '''
-# #generate video of images with circles drawn on particles
-# # video_with_circles = draw_particles_on_video(ratio_vid8, particle_list3)
-# # save_color_video(video_with_circles, output_framerate, basepath, name)
 
 
 ''' draw plots '''
@@ -1741,10 +1771,6 @@ random_sampling(particle_list3, 2, basepath, name)
 plot_contrast_histogram(particle_list3, basepath, name)
 
     
-#%%
-
-
-
 
 
 
